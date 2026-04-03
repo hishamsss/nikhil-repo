@@ -71,6 +71,29 @@ def format_percentile_with_suffix(percentile):
     else:
         return f"{percentile}{suffix}"
 
+def delay_change(delayed_percentile, base_percentile):
+    """Compare delayed vs base percentile and return improved/remained the same/declined."""
+    def parse_val(v):
+        try:
+            if isinstance(v, str) and ">" in v:
+                return float(v.replace(">", ""))
+            if v == "-" or pd.isna(v) or v == "" or v == "#":
+                return None
+            return float(v)
+        except:
+            return None
+
+    d = parse_val(delayed_percentile)
+    b = parse_val(base_percentile)
+    if d is None or b is None:
+        return "-"
+    if d > b:
+        return "improved"
+    elif d == b:
+        return "remained the same"
+    else:
+        return "declined"
+
 def replace_placeholders(doc, lookup):
     def copy_run_style(source_run, target_run):
         target_run.font.bold = source_run.font.bold
@@ -667,6 +690,15 @@ with tab7:
             if champ_trends:
                 for name, trend in champ_trends.items():
                     lookup[f"{name} Change"] = trend
+
+            # === ChAMP Delay Change placeholders
+            # Compare each Delayed percentile vs its immediate counterpart
+            champ_percentile_map = {row["Name"]: row["Percentile"] for _, row in champ_df.iterrows()} if not champ_df.empty else {}
+            for base_name in ["Objects", "Places", "Instructions", "Lists"]:
+                delayed_name = f"{base_name} Delayed"
+                base_val = champ_percentile_map.get(base_name, "")
+                delayed_val = champ_percentile_map.get(delayed_name, "")
+                lookup[f"{delayed_name} Change"] = delay_change(delayed_val, base_val)
 
             cefi_df = st.session_state.get("cefi_df", pd.DataFrame())
             cefi_teacher_df = st.session_state.get("cefi_teacher_df", pd.DataFrame())
